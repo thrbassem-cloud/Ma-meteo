@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#667eea">
+    <title>🌤️ Météo</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+        body{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px}
+        .container{max-width:500px;margin:0 auto}
+        .header{text-align:center;color:white;margin:30px 0}
+        .header h1{font-size:2.5rem;text-shadow:0 2px 10px rgba(0,0,0,0.3)}
+        .card{background:white;border-radius:30px;padding:30px;margin-bottom:20px;box-shadow:0 20px 40px rgba(0,0,0,0.2)}
+        .search{display:flex;gap:10px;margin-bottom:20px}
+        input{flex:1;padding:15px 20px;border:2px solid #e0e0e0;border-radius:15px;font-size:16px;outline:none}
+        input:focus{border-color:#667eea}
+        button{padding:15px 30px;background:#667eea;color:white;border:none;border-radius:15px;font-size:16px;cursor:pointer}
+        button:active{transform:scale(0.95)}
+        .weather{text-align:center;padding:20px 0}
+        .city{font-size:1.8rem;color:#333;margin-bottom:10px}
+        .icon{font-size:6rem;margin:20px 0}
+        .temp{font-size:4rem;color:#667eea;font-weight:300}
+        .desc{color:#666;font-size:1.2rem;margin-top:10px;text-transform:capitalize}
+        .details{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-top:20px}
+        .detail{background:#f8f9fa;padding:15px;border-radius:15px;text-align:center}
+        .detail-icon{font-size:1.5rem;margin-bottom:5px}
+        .detail-value{font-size:1.1rem;font-weight:600;color:#333}
+        .detail-label{font-size:0.75rem;color:#666}
+        .forecast{margin-top:20px}
+        .forecast h3{margin-bottom:15px;color:#333}
+        .forecast-scroll{display:flex;gap:12px;overflow-x:auto;padding-bottom:10px}
+        .forecast-item{min-width:85px;background:#f0f2f5;border-radius:20px;padding:15px 10px;text-align:center}
+        .forecast-day{font-size:0.8rem;color:#666;margin-bottom:8px}
+        .forecast-icon{font-size:2rem;margin:8px 0}
+        .forecast-temp{font-size:1rem;font-weight:600}
+        .loading{display:none;text-align:center;color:white;padding:40px}
+        .loading.active{display:block}
+        .spinner{width:50px;height:50px;border:4px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .error{background:#e74c3c;color:white;padding:15px;border-radius:15px;margin-bottom:20px;display:none;text-align:center}
+        .error.active{display:block}
+        .footer{text-align:center;color:rgba(255,255,255,0.6);font-size:0.8rem;margin-top:30px}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌤️ Météo</h1>
+            <p id="date" style="opacity:0.9;margin-top:10px"></p>
+        </div>
+
+        <div class="card">
+            <div class="search">
+                <input type="text" id="cityInput" placeholder="Entrez une ville..." value="Paris">
+                <button onclick="searchCity()">🔍</button>
+            </div>
+            
+            <div class="error" id="error"></div>
+            <div class="loading" id="loading"><div class="spinner"></div><p>Chargement...</p></div>
+            
+            <div id="weatherContent">
+                <div class="weather">
+                    <div class="city" id="cityName">Paris</div>
+                    <div class="icon" id="weatherIcon">☀️</div>
+                    <div class="temp" id="temp">--°</div>
+                    <div class="desc" id="desc">--</div>
+                </div>
+                
+                <div class="details">
+                    <div class="detail">
+                        <div class="detail-icon">💨</div>
+                        <div class="detail-value" id="wind">--</div>
+                        <div class="detail-label">Vent km/h</div>
+                    </div>
+                    <div class="detail">
+                        <div class="detail-icon">💧</div>
+                        <div class="detail-value" id="humidity">--</div>
+                        <div class="detail-label">Humidité %</div>
+                    </div>
+                    <div class="detail">
+                        <div class="detail-icon">🧭</div>
+                        <div class="detail-value" id="direction">--</div>
+                        <div class="detail-label">Direction</div>
+                    </div>
+                </div>
+
+                <div class="forecast">
+                    <h3>📅 Prévisions 7 jours</h3>
+                    <div class="forecast-scroll" id="forecast"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">Données Open-Meteo • Gratuit</div>
+    </div>
+
+<script>
+const weatherCodes={
+    0:['☀️','Ciel dégagé'],1:['🌤️','Principalement dégagé'],2:['⛅','Partiellement nuageux'],3:['☁️','Couvert'],
+    45:['🌫️','Brouillard'],48:['🌫️','Brouillard givrant'],51:['🌦️','Bruine'],53:['🌦️','Bruine modérée'],55:['🌧️','Bruine dense'],
+    61:['🌧️','Pluie légère'],63:['🌧️','Pluie modérée'],65:['🌧️','Pluie forte'],71:['🌨️','Neige légère'],73:['🌨️','Neige modérée'],75:['❄️','Neige forte'],
+    77:['🌨️','Grains de neige'],80:['🌦️','Averses légères'],81:['🌧️','Averses modérées'],82:['⛈️','Averses violentes'],
+    85:['🌨️','Averses de neige'],86:['❄️','Fortes averses de neige'],95:['⛈️','Orage'],96:['⛈️','Orage avec grêle'],99:['⛈️','Orage violent']
+};
+
+const directions=['N','NE','E','SE','S','SO','O','NO'];
+
+function updateDate(){
+    const options={weekday:'long',year:'numeric',month:'long',day:'numeric'};
+    document.getElementById('date').textContent=new Date().toLocaleDateString('fr-FR',options);
+}
+
+async function searchCity(){
+    const city=document.getElementById('cityInput').value.trim();
+    if(!city)return;
+    
+    document.getElementById('loading').classList.add('active');
+    document.getElementById('error').classList.remove('active');
+    
+    try{
+        const geoRes=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=fr`);
+        const geoData=await geoRes.json();
+        
+        if(!geoData.results||geoData.results.length===0){
+            throw new Error('Ville non trouvée');
+        }
+        
+        const {latitude,longitude,name,country}=geoData.results[0];
+        document.getElementById('cityName').textContent=name+(country?`, ${country}`:'');
+        
+        const weatherRes=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=7`);
+        const weatherData=await weatherRes.json();
+        
+        displayWeather(weatherData);
+    }catch(err){
+        document.getElementById('error').textContent=err.message;
+        document.getElementById('error').classList.add('active');
+    }
+    
+    document.getElementById('loading').classList.remove('active');
+}
+
+function displayWeather(data){
+    const current=data.current;
+    const w=weatherCodes[current.weather_code]||['🌡️','Inconnu'];
+    
+    document.getElementById('weatherIcon').textContent=w[0];
+    document.getElementById('temp').textContent=Math.round(current.temperature_2m)+'°';
+    document.getElementById('desc').textContent=w[1];
+    document.getElementById('wind').textContent=Math.round(current.wind_speed_10m);
+    document.getElementById('humidity').textContent=current.relative_humidity_2m;
+    document.getElementById('direction').textContent=directions[Math.round(current.wind_direction_10m/45)%8];
+    
+    const days=['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+    const today=new Date().getDay();
+    
+    document.getElementById('forecast').innerHTML=data.daily.time.map((t,i)=>{
+        const dw=weatherCodes[data.daily.weather_code[i]]||['🌡️',''];
+        const dayIndex=(today+i)%7;
+        return `
+            <div class="forecast-item">
+                <div class="forecast-day">${i===0?'Auj':days[dayIndex]}</div>
+                <div class="forecast-icon">${dw[0]}</div>
+                <div class="forecast-temp">${Math.round(data.daily.temperature_2m_max[i])}° / ${Math.round(data.daily.temperature_2m_min[i])}°</div>
+            </div>
+        `;
+    }).join('');
+}
+
+updateDate();
+searchCity();
+
+document.getElementById('cityInput').addEventListener('keypress',(e)=>{
+    if(e.key==='Enter')searchCity();
+});
+</script>
+</body>
+</html>
